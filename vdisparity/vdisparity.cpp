@@ -199,15 +199,15 @@ int _tmain(int argc, _TCHAR* argv[])
 
 			}
 		}
-		//imshow("image",image);
-		//imshow("disparity",disparity);
-		//imshow("v-disparity",v_disparity_result);
+		imshow("image",image);
+		imshow("disparity",disparity);
+		imshow("v-disparity",v_disparity_result);
 		imshow("result",img_result);
-		//imshow("disparity_result",dsp_result);
-		//imwrite(format("D:\\360安全浏览器下载\\sample\\%d\\v_disparity_result.png",fps),v_disparity_result);
-		//imwrite(format("D:\\360安全浏览器下载\\sample\\%d\\left_result.png",fps),img_result);
-		//imwrite(format("D:\\360安全浏览器下载\\sample\\%d\\disparity_8uc1_result.png",fps),dsp_result);
-		//setMouseCallback("result",on_mouse,NULL);
+		imshow("disparity_result",dsp_result);
+		imwrite(format(".\\sample\\%d\\v_disparity_result.png",fps),v_disparity_result);
+		imwrite(format(".\\sample\\%d\\left_result.png",fps),img_result);
+		imwrite(format(".\\sample\\%d\\disparity_8uc1_result.png",fps),dsp_result);
+		setMouseCallback("result",on_mouse,NULL);
 		char key=waitKey(10);
 		switch(key)
 		{			
