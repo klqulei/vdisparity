@@ -1,6 +1,6 @@
 #include "stdafx.h"
-
 #include <iostream>
+#include <algorithm>
 #include <fstream>
 #include <vector>
 #include <cmath>
@@ -15,6 +15,10 @@ static int fps=1;
 #define	 MIN_D 0
 #define PI 3.141592653
 #define C 4
+#define JUMP_DISP0 10
+#define JUMP_OBJECT 0.2
+#define P_Y 22
+#define P_X 6
 Mat image,disparity,v_disparity,v_disparity_result,img_result,dsp_result;
 #define max(a,b) (((a)>(b))?(a):(b))
 #define min(a,b) (((a)<(b))?(a):(b))
@@ -39,7 +43,8 @@ void on_mouse(int event, int x, int y, int flags, void* param)
 	Point pt(x,y);
 	Point dpt_v(disparity.at<uchar>(pt),y);
 	char temp[30];
-	sprintf(temp,"%d",disparity.at<uchar>(pt));
+	//sprintf(temp,"%d",disparity.at<uchar>(pt));
+	sprintf(temp, "%d", disparity.at<uchar>(pt));
 	int baseline;
 	cvGetTextSize(temp,&font,&text_size,&baseline);
 	Point pt_t(bound(pt.x,0,disparity.cols-text_size.width),bound(pt.y,text_size.height+baseline,disparity.rows-1-baseline));
@@ -68,6 +73,129 @@ void on_mouse(int event, int x, int y, int flags, void* param)
 			//circle(v_disparity,dpt_v,2,Scalar(255),CV_FILLED,CV_AA,0);
 			circle(v_disparity_result,dpt_v,2,Scalar(0,255,0),CV_FILLED,CV_AA,0);
 	}
+}
+
+void find_boundary(int y)
+{  
+	Mat img_result2;
+	img_result.copyTo(img_result2);
+	
+	vector<Point> boundary_point;
+	
+	for (int j = 0; j < disparity.cols; j++)
+	{
+		for (int i = disparity.rows - 75; i>=y; i--)
+		{
+			int flag = 0;
+			if (disparity.at<uchar>(i, j) == 0)
+			{   
+				for (int m = i; m > i - JUMP_DISP0; m--)
+				{
+					if (dsp_result.at<Vec3b>(m, j) == Vec3b(0, 125, 0))
+					{
+						flag = 1;
+						//circle(img_result, Point(j, i), 2, Scalar(255, 0, 0), CV_FILLED, CV_AA, 0);
+						break;
+					}
+				}
+			}
+
+			if (flag == 1)
+			{
+				continue;
+			}
+
+
+
+			int flag2 = 0;
+			if (dsp_result.at<Vec3b>(i, j) != Vec3b(0, 125, 0)/*&&dsp_result.at<Vec3b>(i+1, j) == Vec3b(0, 125, 0)*/)
+			{
+				int delta = disparity.at<uchar>(i, j)*JUMP_OBJECT;
+				for (int m = i; m > i-delta;m--)
+				{
+					if (dsp_result.at<Vec3b>(m, j) == Vec3b(0, 125, 0))
+					{
+						flag2 = 1;
+						break;
+					}
+				}
+				
+				if (flag2 == 1)
+				{
+					continue;
+			    }
+				else
+				{
+					//circle(img_result, Point(j, i), 2, Scalar(0, 255, 255), CV_FILLED, CV_AA, 0);
+					//circle(dsp_result,Point(j,i),2,Scalar(0, 255, 255),CV_FILLED,CV_AA, 0);
+					boundary_point.push_back(Point(j,i));
+					break;
+				}
+				
+			}
+
+
+		}
+	}
+	
+	vector<Point>poly;
+	vector<vector<Point>> boundarys;
+	boundarys.push_back(boundary_point);
+	approxPolyDP(boundarys[0],poly,2,false);
+	cout << "size" << poly.size() << endl;
+	for (int i = 0; i < poly.size(); i++)
+	{
+
+		circle(img_result, poly[i], 2, Scalar(255, 0, 0), CV_FILLED, CV_AA, 0);
+	}
+	
+	
+	vector<int> point_delete;
+	vector<Point> boundary_final;
+	for (int i = 1; i < poly.size() - 1; i++)
+	{
+
+		if ((abs(poly[i].y - poly[i - 1].y)>P_Y && abs(poly[i].y - poly[i + 1].y) >P_Y) || (abs(poly[i].y - poly[i - 1].y) >P_Y && abs(poly[i].x - poly[i + 1].x)<P_X) || (abs(poly[i].y - poly[i + 1].y)>P_Y && abs(poly[i].x - poly[i - 1].x) <P_X))
+		{
+			point_delete.push_back(i);
+		}
+        
+	}
+
+	
+	for (int i = 0; i < point_delete.size() - 1; i++)
+	{
+		if ((point_delete[i + 1] - point_delete[i])>1 && (point_delete[i + 1] - point_delete[i])<P_X)
+		{
+			for (int j = point_delete[i]; j < point_delete[i + 1]; j++)
+			{
+				point_delete.push_back(j);
+
+			}
+          
+		}
+	}
+
+
+	
+	for (int i = 0; i < poly.size(); i++)
+	{
+	    if (find(point_delete.begin(),point_delete.end(),i)==point_delete.end())
+	    boundary_final.push_back(poly[i]);
+	}
+	
+	
+	vector<Point>::const_iterator itp_f = boundary_final.begin();
+	while (itp_f != (boundary_final.end() - 1))
+	{
+		line(img_result, *itp_f, *(itp_f + 1), Scalar(0, 255, 255), 2);
+		++itp_f;
+	}
+	
+	
+	
+
+
 }
 int _tmain(int argc, _TCHAR* argv[])
 {	
@@ -185,30 +313,41 @@ int _tmain(int argc, _TCHAR* argv[])
 			Vec3b *data_dr=dsp_result.ptr<Vec3b>(i);
 			for(int j=0;j<img_result.cols;j++)
 			{
-				if(data_d[j]==0)continue;
+				if (data_d[j] == 0)
+				{
+
+					data_i[j] += Vec3b(0, 0, 255);
+					data_dr[j] = Vec3b(0, 0, 255);
+					continue;
+				}
+				
 				else
 				{
 					double r=ground_line[i]-data_d[j];
 					double confidence=C*exp(-r*r/(2*C*C));
-					if (confidence>0.5)
+					//if (confidence>0.5)
+					if (data_d[j]<ground_line[i]||confidence>0.3)
 					{
 						data_i[j]+=Vec3b(0,125,0);
-						data_dr[j]+=Vec3b(0,125,0);
+						data_dr[j]=Vec3b(0,125,0);
 					}
 				 }
 
 			}
 		}
+		//6.add and find boundary
+		find_boundary((int)y1);
 		imshow("image",image);
 		imshow("disparity",disparity);
 		imshow("v-disparity",v_disparity_result);
 		imshow("result",img_result);
+		
 		imshow("disparity_result",dsp_result);
 		imwrite(format(".\\sample\\%d\\v_disparity_result.png",fps),v_disparity_result);
 		imwrite(format(".\\sample\\%d\\left_result.png",fps),img_result);
 		imwrite(format(".\\sample\\%d\\disparity_8uc1_result.png",fps),dsp_result);
 		setMouseCallback("result",on_mouse,NULL);
-		char key=waitKey(10);
+		char key=waitKey(0);
 		switch(key)
 		{			
 		case 'q':flag=false;
